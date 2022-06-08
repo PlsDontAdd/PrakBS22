@@ -10,4 +10,4 @@ add_executable(PrakBS22
         keyValueStore.h
         main.c
         server.c
-        server.h)
+        server.h sub.c sub.h)

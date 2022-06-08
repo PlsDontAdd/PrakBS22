@@ -2,7 +2,7 @@
 #include "server.h"
 
 int main() {
-    createSharedMemoryStore();
+    //createSharedMemoryStore();
     startServer();
     return 0;
 }

@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <signal.h>
 #include "keyValueStore.h"
+#include "sub.h"
 
 #define GROESSE 1024
 #define SCHLEIFEFUERTELNET 1
@@ -39,12 +41,8 @@ int startServer() {
     char sendingMessage[GROESSE];
     char incomingMessage[GROESSE]; // Daten vom Client an den Server
 
-    clearArray(incomingMessage);
-    clearArray(sendingMessage);
-
     socklen_t client_len; // Länge der Client-Daten
     int messageSize; // Anzahl der Bytes, die der Client geschickt hat
-
 
     // Erstellen / Anlegen von mySocket
     server_fd = socket(AF_INET, SOCK_STREAM, 0); // AF_INET = IPv4, SOCKSTREAM = TCP (verbindungsorientiert), 0 =
@@ -83,6 +81,7 @@ int startServer() {
     }
 
     createSharedMemoryStore();
+    initSub();
     client_len = sizeof( (struct sockaddr *) &server);
 
     while (SCHLEIFEFUERTELNET) {
@@ -95,53 +94,72 @@ int startServer() {
             fprintf(stderr, "Fehler beim forken.\n");
         } else if (childpid == 0) {
             close(server_fd);
-            messageSize = read(user, incomingMessage, GROESSE);
 
-            while(1) {
-                fprintf(stderr, "Die Nachricht enthielt: %d Bytes\n", messageSize);
-                memset(sendingMessage,0,GROESSE);
-                order = strtok(incomingMessage, " \r");
-                key = strtok(NULL," \r");
-                value = strtok(NULL," ");
+            int pid = getpid();
 
-                write(user, sendingMessage, GROESSE);
+            childpid = fork();
 
-                if (strcmp(order, "QUIT") == 0) {
-                    printf("Connection closed\n");
-                    shutdown(user, 2);
-                    close(user);
-                    return 0;
-                } else if (strcmp(order, "PUT") == 0) {
-                    int resultPut = put(key, value);
-                    if (resultPut == 0 || resultPut == 1) {
-                        createMessage(sendingMessage, order, key, value);
-                        write(user, sendingMessage, GROESSE);
-                    }
-                } else if (strcmp(order, "GET") == 0) {
-                    if (get(key, value) == 0) {
-                        createMessage(sendingMessage, order, key, value);
-                        write(user, sendingMessage, GROESSE);
-                    }
-                    else {
-                        createMessage(sendingMessage, order, key, "key_nonexistent\n");
-                        write(user, sendingMessage, GROESSE);
-                    }
+            if (childpid == -1) {
+                fprintf(stderr,"Fehler beim listener forken!\n");
+            } else if (childpid == 0) {
+                receiveMessage(user, pid);
+                return 0;
+            } else {
+                while (1) {
+                    clearArray(incomingMessage);
+                    clearArray(sendingMessage);
 
-                } else if (strcmp(order, "DEL") == 0){
-                    if (del(key) == 0 ) {
-                        createMessage(sendingMessage, order, key, "key_deleted\n");
-                        write(user, sendingMessage, GROESSE);
-                    } else {
-                        createMessage(sendingMessage, order, key,"key_nonexistent\n");
-                        write(user, sendingMessage, GROESSE);
+                    messageSize = read(user, incomingMessage, GROESSE);
+
+                    fprintf(stderr, "Die Nachricht enthielt: %d Bytes\n", messageSize);
+                    memset(sendingMessage, 0, GROESSE);
+                    order = strtok(incomingMessage, " \r");
+                    key = strtok(NULL, " \r");
+                    value = strtok(NULL, " ");
+
+                    write(user, sendingMessage, GROESSE);
+
+                    if (strcmp(order, "QUIT") == 0) {
+                        kill(childpid, SIGKILL);    //TODO killt prozess nicht ganz, hinterlässt zombie prozess
+                        printf("Connection closed\n");
+                        shutdown(user, 2);
+                        close(user);
+                        return 0;
+                    } else if (strcmp(order, "PUT") == 0) {
+                        int resultPut = put(key, value);
+                        if (resultPut == 0 || resultPut == 1) {
+                            createMessage(sendingMessage, order, key, value);
+                            write(user, sendingMessage, GROESSE);
+                            sendMessage(key, sendingMessage, pid);
+                        }
+                    } else if (strcmp(order, "GET") == 0) {
+                        if (get(key, value) == 0) {
+                            createMessage(sendingMessage, order, key, value);
+                            write(user, sendingMessage, GROESSE);
+                        } else {
+                            createMessage(sendingMessage, order, key, "key_nonexistent\n");
+                            write(user, sendingMessage, GROESSE);
+                        }
+                    } else if (strcmp(order, "DEL") == 0) {
+                        if (del(key) == 0) {
+                            createMessage(sendingMessage, order, key, "key_deleted\n");
+                            write(user, sendingMessage, GROESSE);
+                            sendMessage(key, sendingMessage, pid);
+                        } else {
+                            createMessage(sendingMessage, order, key, "key_nonexistent\n");
+                            write(user, sendingMessage, GROESSE);
+                        }
+                    } else if (strcmp(order, "SUB") == 0) {
+                        if (get(key, value) == 0) {
+                            saveSub(key, pid);
+                            createMessage(sendingMessage, order, key, value);
+                            write(user, sendingMessage, GROESSE);
+                        } else {
+                            createMessage(sendingMessage, order, key, "key_nonexistent\n");
+                            write(user, sendingMessage, GROESSE);
+                        }
                     }
                 }
-
-                clearArray(incomingMessage);
-                clearArray(sendingMessage);
-
-                //write(user, incomingMessage, messageSize); //Nutzen um ein Echo zurückzusenden
-                messageSize = read(user, incomingMessage, GROESSE);
             }
         }
 
