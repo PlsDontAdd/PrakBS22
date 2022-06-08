@@ -15,14 +15,34 @@ int user; // Verbindungsdeskriptor des Users / Client
 pid_t childpid;
 struct sockaddr_in client; // Socketadresse eines Clients
 
+void clearArray(char* array) {
+    for (int i = 0; i < GROESSE; i++) {
+        array[i] = '\0';
+    }
+}
+
+void createMessage(char* message, char* order, char* key, char* value) {
+    clearArray(message);
+
+    strcat(message, "> ");
+    strcat(message, order);
+    strcat(message, ":");
+    strcat(message, key);
+    strcat(message, ":");
+    strcat(message, value);
+}
+
 int startServer() {
     char* key;
     char* value;
     char* order;
     char sendingMessage[GROESSE];
+    char incomingMessage[GROESSE]; // Daten vom Client an den Server
+
+    clearArray(incomingMessage);
+    clearArray(sendingMessage);
 
     socklen_t client_len; // Länge der Client-Daten
-    char incomingMessage[GROESSE]; // Daten vom Client an den Server
     int messageSize; // Anzahl der Bytes, die der Client geschickt hat
 
 
@@ -77,7 +97,7 @@ int startServer() {
             close(server_fd);
             messageSize = read(user, incomingMessage, GROESSE);
 
-            while(messageSize > 2 ) {
+            while(1) {
                 fprintf(stderr, "Die Nachricht enthielt: %d Bytes\n", messageSize);
                 memset(sendingMessage,0,GROESSE);
                 order = strtok(incomingMessage, " \r");
@@ -94,53 +114,31 @@ int startServer() {
                 } else if (strcmp(order, "PUT") == 0) {
                     int resultPut = put(key, value);
                     if (resultPut == 0 || resultPut == 1) {
-                        strcat(sendingMessage, "> ");
-                        strcat(sendingMessage, order);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, key);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, value);
+                        createMessage(sendingMessage, order, key, value);
                         write(user, sendingMessage, GROESSE);
                     }
                 } else if (strcmp(order, "GET") == 0) {
                     if (get(key, value) == 0) {
-                        strcat(sendingMessage, "> ");
-                        strcat(sendingMessage, order);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, key);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, value);
+                        createMessage(sendingMessage, order, key, value);
                         write(user, sendingMessage, GROESSE);
                     }
                     else {
-                        strcat(sendingMessage, "> ");
-                        strcat(sendingMessage, order);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, key);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, "key_nonexistent\n");
+                        createMessage(sendingMessage, order, key, "key_nonexistent\n");
                         write(user, sendingMessage, GROESSE);
                     }
 
                 } else if (strcmp(order, "DEL") == 0){
                     if (del(key) == 0 ) {
-                        strcat(sendingMessage, "> ");
-                        strcat(sendingMessage, order);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, key);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, "key_deleted\n");
+                        createMessage(sendingMessage, order, key, "key_deleted\n");
                         write(user, sendingMessage, GROESSE);
                     } else {
-                        strcat(sendingMessage, "> ");
-                        strcat(sendingMessage, order);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, key);
-                        strcat(sendingMessage, ":");
-                        strcat(sendingMessage, "key_nonexistent\n");
+                        createMessage(sendingMessage, order, key,"key_nonexistent\n");
                         write(user, sendingMessage, GROESSE);
                     }
                 }
+
+                clearArray(incomingMessage);
+                clearArray(sendingMessage);
 
                 //write(user, incomingMessage, messageSize); //Nutzen um ein Echo zurückzusenden
                 messageSize = read(user, incomingMessage, GROESSE);
