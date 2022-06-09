@@ -5,9 +5,4 @@ set(CMAKE_C_STANDARD 11)
 
 include_directories(.)
 
-add_executable(PrakBS22
-        keyValueStore.c
-        keyValueStore.h
-        main.c
-        server.c
-        server.h sub.c sub.h)
+add_executable(PrakBS22 keyValueStore.c keyValueStore.h main.c server.c server.h sub.c sub.h)

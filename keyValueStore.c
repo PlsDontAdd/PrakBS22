@@ -5,11 +5,8 @@
 #include <pwd.h>
 #include "keyValueStore.h"
 #include <sys/shm.h>
-
-#define STORESIZE 500
-#define LENGTH_KEY 1024
-#define LENGTH_VALUE 1024
-#define SHAREDMEMSIZE (((LENGTH_KEY + LENGTH_VALUE) * STORESIZE) + sizeof(int))
+#include <sys/sem.h>
+#include <unistd.h>
 
 typedef struct node {
     char key[LENGTH_KEY];
@@ -17,9 +14,11 @@ typedef struct node {
     // struct node *next;
 }node;
 
-int shmid;
+int shmid, semid;
+int* sempid;
 int* keyValueNum;
 struct node* keyValueStore;
+struct sembuf enter, leave;
 
 
 void createSharedMemoryStore(void) {
@@ -44,13 +43,30 @@ void createSharedMemoryStore(void) {
         printf("Shared Memory Store: Successfully binded Shared Memory!\n");
     }
 
+    semid = semget(IPC_CREAT, 1, IPC_CREAT|0777);
+    if (semid == -1) {
+        fprintf(stderr,"Fehler beim erstellen des semaphores!");
+        exit(1);
+    }
+
+    semctl(semid,1, SETALL, 1);
+    enter.sem_num = leave.sem_num = 0;
+    enter.sem_flg = leave.sem_flg = SEM_UNDO;
+    enter.sem_op = -1;
+    leave.sem_op = 1;
+
+    sempid = (int*) shm_addr;
+    *sempid = 0;
+
+    semop(semid, &leave, 1);
+
     // Shared Memory keyValueNum = Number of Keys in struct
     printf("Shared Memory Store: Creating keyValueStore in Shared Memory!\n");
-    keyValueNum = (int*) shm_addr;
+    keyValueNum = (int*) (shm_addr + sizeof(int));
     *keyValueNum = 0;
 
     // Shared Memory keyValueStore = Range of keyValueStore
-    keyValueStore = (struct node*) ((void*) shm_addr + sizeof(int));
+    keyValueStore = (struct node*) ((void*) shm_addr + 2 * sizeof(int));
     //printf("Shared Memory Store: KeyValueStore: %s\n", *keyValueStore);
     if (keyValueStore == (void*) -1) {
         printf("Shared Memory Store: Error at creating KeyValueStore!\n");
@@ -69,7 +85,7 @@ void deleteSharedMemoryStore() {
     }
 }
 
-int put(char* key, char* value) {
+int put_in(char* key, char* value) {
     int i;
 
     for (i = 0; i < (*keyValueNum); i++) {
@@ -83,11 +99,31 @@ int put(char* key, char* value) {
         strcpy(keyValueStore[(*keyValueNum)].key, key);
         strcpy(keyValueStore[(*keyValueNum)].value, value);
         (*keyValueNum)++;
+        return 0;
+    } else {
+        return -1;
     }
-    return 0;
 }
 
-int get(char* key, char* res) {
+int put(char* key, char* value) {
+    semop(semid, &enter,1);
+    printf("check sempid");
+    if (*sempid == getpid()) {
+        semop(semid, &leave, 1);
+        return put_in(key, value);
+    } else {
+        printf("check 0");
+        if (*sempid == 0) {
+            semop(semid, &leave,1);
+            return put_in(key, value);
+        } else {
+            semop(semid, &leave,1);
+            return -1;
+        }
+    }
+}
+
+int get_in(char* key, char* res) {
     int i = 0;
     if(strcmp(keyValueStore[i].key, "\0") != 0) {
         do {
@@ -103,13 +139,28 @@ int get(char* key, char* res) {
     }
 }
 
-int del(char* key) {
+int get(char* key, char* res) {
+    semop(semid, &enter,1);
+    if (*sempid == getpid()) {
+        semop(semid, &leave, 1);
+        return get_in(key, res);
+    } else {
+        if (*sempid == 0) {
+            semop(semid, &leave,1);
+            return get_in(key, res);
+        } else {
+            semop(semid, &leave,1);
+            return -1;
+        }
+    }
+}
+
+int del_in(char* key) {
     int i = 0;
     if(strcmp(keyValueStore[i].key, "\0") != 0) {
         do {
             if(strcmp(keyValueStore[i].key, key) == 0) {
                 int j = i + 1;
-
                 do {
                     strcpy(keyValueStore[i].key, keyValueStore[j].key);
                     strcpy(keyValueStore[i].value, keyValueStore[j].value);
@@ -127,4 +178,42 @@ int del(char* key) {
     else {
         return -1;
     }
+}
+
+int del(char* key) {
+    semop(semid, &enter,1);
+    if (*sempid == getpid()) {
+        semop(semid, &leave, 1);
+        return del_in(key);
+    } else {
+        if (*sempid == 0) {
+            semop(semid, &leave,1);
+            return del_in(key);
+        } else {
+            semop(semid, &leave,1);
+            return -1;
+        }
+    }
+}
+
+int beg() {
+    semop(semid, &enter, 1);
+    int pid = getpid();
+    if (*sempid == 0) {
+        semop(semid, & leave, 1);
+        *sempid = pid;
+        return 0;
+    }
+    semop(semid, &leave,1);
+    return -1;
+}
+
+int end() {
+    semop(semid, &enter,1);
+    if (*sempid == getpid()) {
+        semop(semid, &leave,1);
+        *sempid = 0;
+        return 0;
+    }
+    return -1;
 }

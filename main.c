@@ -1,4 +1,3 @@
-#include "keyValueStore.h"
 #include "server.h"
 
 int main() {

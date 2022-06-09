@@ -4,6 +4,6 @@
 #define GROESSE 1024
 
 void clearArray(char* array);
-void startServer();
+int startServer();
 
 #endif //BS_PRAKTIKUM_SS_22_SUB_H

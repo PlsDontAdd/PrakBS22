@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/shm.h>
-#include <sys/sem.h>
 #include <sys/msg.h>
 #include <unistd.h>
 #include "keyValueStore.h"
@@ -19,7 +18,7 @@ struct text_message {
 
 struct sublist* subs;
 
-int shmid, semid, msgid;
+int shmid, msgid;
 
 void initSub() {
     char *shm_addr;
@@ -34,20 +33,7 @@ void initSub() {
 
     shm_addr = shmat(shmid, NULL, 0);
     subs = (struct sublist*) shm_addr;
-
-    //semid = semget(IPC_PRIVATE, 1, IPC_CREAT | 0777);
     msgid = msgget(1, IPC_CREAT|0644);
-
-//    char cleanString[1024];
-//
-//    clearArray(cleanString);
-//
-//    for (int i = 0; i < STORESIZE; ++i) {
-//        strcpy(subs[i].key, cleanString);
-//        for (int j = 0; j < 10; ++j) {
-//            subs[i].pids[j] = 0;
-//        }
-//    }
 }
 
 int addKey(char* key) {

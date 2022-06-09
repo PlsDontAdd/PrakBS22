@@ -1,4 +1,5 @@
 #include <sys/socket.h>
+#include <sys/sem.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,13 +8,14 @@
 #include <signal.h>
 #include "keyValueStore.h"
 #include "sub.h"
+#include "server.h"
 
-#define GROESSE 1024
 #define SCHLEIFEFUERTELNET 1
 #define PORT 5678
 
 int server_fd; // Filedeskriptor/Rendevouzdescriptor des Sockets
 int user; // Verbindungsdeskriptor des Users / Client
+int semid;
 pid_t childpid;
 struct sockaddr_in client; // Socketadresse eines Clients
 
@@ -117,15 +119,20 @@ int startServer() {
                     key = strtok(NULL, " \r");
                     value = strtok(NULL, " ");
 
-                    write(user, sendingMessage, GROESSE);
+                    //write(user, sendingMessage, GROESSE);
 
+                    printf("check quit");
                     if (strcmp(order, "QUIT") == 0) {
                         kill(childpid, SIGKILL);    //TODO killt prozess nicht ganz, hinterlässt zombie prozess
                         printf("Connection closed\n");
                         shutdown(user, 2);
                         close(user);
                         return 0;
-                    } else if (strcmp(order, "PUT") == 0) {
+                    }
+
+                    printf("check command");
+                    if (strcmp(order, "PUT") == 0) {
+                        printf("is put");
                         int resultPut = put(key, value);
                         if (resultPut == 0 || resultPut == 1) {
                             createMessage(sendingMessage, order, key, value);
@@ -149,6 +156,10 @@ int startServer() {
                             createMessage(sendingMessage, order, key, "key_nonexistent\n");
                             write(user, sendingMessage, GROESSE);
                         }
+                    } else if (strcmp(order, "BEG") == 0) {
+                        beg();
+                    } else if (strcmp(order, "END") == 0) {
+                        end();
                     } else if (strcmp(order, "SUB") == 0) {
                         if (get(key, value) == 0) {
                             saveSub(key, pid);
@@ -162,7 +173,6 @@ int startServer() {
                 }
             }
         }
-
     }
     close(server_fd);
     return 0;
