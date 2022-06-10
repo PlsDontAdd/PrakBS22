@@ -83,6 +83,14 @@ void deleteSharedMemoryStore() {
     } else {
         printf("Shared Memory Store: Shared Memory deleted!\n");
     }
+
+    if (semctl(semid, 0,IPC_RMID) == -1) {
+        printf("Semaphore: Error at deleting Semaphore!\n");
+        printf("Semaphore: SemaphoreID: %d, Command: %d\n", shmid, IPC_RMID);
+    } else {
+        printf("Semaphore: Semaphore deleted!\n");
+    }
+
 }
 
 int put_in(char* key, char* value) {
@@ -106,21 +114,27 @@ int put_in(char* key, char* value) {
 }
 
 int put(char* key, char* value) {
-    semop(semid, &enter,1);
-    printf("check sempid");
     if (*sempid == getpid()) {
-        semop(semid, &leave, 1);
         return put_in(key, value);
     } else {
-        printf("check 0");
-        if (*sempid == 0) {
-            semop(semid, &leave,1);
-            return put_in(key, value);
-        } else {
-            semop(semid, &leave,1);
-            return -1;
-        }
+        semop(semid, &enter,1);
+        int result = put_in(key, value);
+        semop(semid, &leave,1);
+        return result;
     }
+//    semop(semid, &enter,1);
+//    if (*sempid == getpid()) {
+//        semop(semid, &leave, 1);
+//        return put_in(key, value);
+//    } else {
+//        if (*sempid == 0) {
+//            semop(semid, &leave,1);
+//            return put_in(key, value);
+//        } else {
+//            semop(semid, &leave,1);
+//            return -1;
+//        }
+//    }
 }
 
 int get_in(char* key, char* res) {
@@ -140,19 +154,28 @@ int get_in(char* key, char* res) {
 }
 
 int get(char* key, char* res) {
-    semop(semid, &enter,1);
     if (*sempid == getpid()) {
-        semop(semid, &leave, 1);
         return get_in(key, res);
     } else {
-        if (*sempid == 0) {
-            semop(semid, &leave,1);
-            return get_in(key, res);
-        } else {
-            semop(semid, &leave,1);
-            return -1;
-        }
+        semop(semid, &enter,1);
+        int result = get_in(key, res);
+        semop(semid, &leave,1);
+        return result;
     }
+
+//    semop(semid, &enter,1);
+//    if (*sempid == getpid()) {
+//        semop(semid, &leave, 1);
+//        return get_in(key, res);
+//    } else {
+//        if (*sempid == 0) {
+//            semop(semid, &leave,1);
+//            return get_in(key, res);
+//        } else {
+//            semop(semid, &leave,1);
+//            return -1;
+//        }
+//    }
 }
 
 int del_in(char* key) {
@@ -181,39 +204,63 @@ int del_in(char* key) {
 }
 
 int del(char* key) {
-    semop(semid, &enter,1);
     if (*sempid == getpid()) {
-        semop(semid, &leave, 1);
         return del_in(key);
     } else {
-        if (*sempid == 0) {
-            semop(semid, &leave,1);
-            return del_in(key);
-        } else {
-            semop(semid, &leave,1);
-            return -1;
-        }
+        semop(semid, &enter,1);
+        int result = del_in(key);
+        semop(semid, &leave,1);
+        return result;
     }
+
+//    semop(semid, &enter,1);
+//    if (*sempid == getpid()) {
+//        semop(semid, &leave, 1);
+//        return del_in(key);
+//    } else {
+//        if (*sempid == 0) {
+//            semop(semid, &leave,1);
+//            return del_in(key);
+//        } else {
+//            semop(semid, &leave,1);
+//            return -1;
+//        }
+//    }
 }
 
 int beg() {
-    semop(semid, &enter, 1);
-    int pid = getpid();
-    if (*sempid == 0) {
-        semop(semid, & leave, 1);
-        *sempid = pid;
-        return 0;
+    if (*sempid == getpid()) {
+        return -1;
     }
-    semop(semid, &leave,1);
-    return -1;
+
+    semop(semid, &enter, 1);
+    *sempid = getpid();
+    return 0;
+//    semop(semid, &enter, 1);
+//    int pid = getpid();
+//    if (*sempid == 0) {
+//        semop(semid, & leave, 1);
+//        *sempid = pid;
+//        return 0;
+//    }
+//    semop(semid, &leave,1);
+//    return -1;
 }
 
 int end() {
-    semop(semid, &enter,1);
-    if (*sempid == getpid()) {
-        semop(semid, &leave,1);
-        *sempid = 0;
-        return 0;
+    if (*sempid != getpid()) {
+        return -1;
     }
-    return -1;
+
+    *sempid = 0;
+    semop(semid, &leave,1);
+    return 0;
+
+//    semop(semid, &enter,1);
+//    if (*sempid == getpid()) {
+//        semop(semid, &leave,1);
+//        *sempid = 0;
+//        return 0;
+//    }
+//    return -1;
 }

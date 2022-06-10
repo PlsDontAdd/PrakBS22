@@ -121,8 +121,8 @@ int startServer() {
 
                     //write(user, sendingMessage, GROESSE);
 
-                    printf("check quit");
                     if (strcmp(order, "QUIT") == 0) {
+                        end();
                         kill(childpid, SIGKILL);    //TODO killt prozess nicht ganz, hinterlässt zombie prozess
                         printf("Connection closed\n");
                         shutdown(user, 2);
@@ -130,9 +130,7 @@ int startServer() {
                         return 0;
                     }
 
-                    printf("check command");
                     if (strcmp(order, "PUT") == 0) {
-                        printf("is put");
                         int resultPut = put(key, value);
                         if (resultPut == 0 || resultPut == 1) {
                             createMessage(sendingMessage, order, key, value);
@@ -158,8 +156,12 @@ int startServer() {
                         }
                     } else if (strcmp(order, "BEG") == 0) {
                         beg();
+                        createMessage(sendingMessage, order, "exclusive_access", "granted\n");
+                        write(user, sendingMessage, GROESSE);
                     } else if (strcmp(order, "END") == 0) {
                         end();
+                        createMessage(sendingMessage, order, "exclusive_access", "removed\n");
+                        write(user, sendingMessage, GROESSE);
                     } else if (strcmp(order, "SUB") == 0) {
                         if (get(key, value) == 0) {
                             saveSub(key, pid);
@@ -175,5 +177,6 @@ int startServer() {
         }
     }
     close(server_fd);
+    deleteSharedMemoryStore();
     return 0;
 }

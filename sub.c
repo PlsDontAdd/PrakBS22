@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
@@ -88,6 +89,14 @@ void sendMessage(char* key, char* message, int pid) {
     }
 }
 
+//void sendMessageToProcess(char* message, int pid) {
+//    struct text_message msg;
+//    strcpy(msg.mtext, message);
+//    msg.mtype = pid;
+//
+//    msgsnd(msgid, &msg, GROESSE,0);
+//}
+
 void receiveMessage(int client, int pid) {
     char message[GROESSE];
     struct text_message msg;
@@ -98,6 +107,10 @@ void receiveMessage(int client, int pid) {
 
         msgrcv(msgid, &msg, 1024, pid, 0);
         strcpy(message, msg.mtext);
+
+//        if (strcmp(message, "quit")) {
+//            exit(0);
+//        }
 
         write(client, message, 1024);
     }

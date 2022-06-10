@@ -7,6 +7,7 @@
 #define SHAREDMEMSIZE ((sizeof(node) * STORESIZE) + sizeof(int) * 2)
 
 void createSharedMemoryStore();
+void deleteSharedMemoryStore();
 int put(char* key, char* value);
 int get(char* key, char* res);
 int del(char* key);
